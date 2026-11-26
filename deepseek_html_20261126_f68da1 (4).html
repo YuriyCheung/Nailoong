@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>奶龍股 0842.HK · 模擬交易所</title>
+<style>
+:root{
+  --bg:#070a0f;
+  --panel:#0e131b;
+  --panel2:#141b25;
+  --line:#1c2431;
+  --txt:#dbe4ee;
+  --dim:#67758a;
+  --up:#00c389;    /* 綠色：上升 */
+  --down:#ff4d5e;  /* 紅色：下跌 */
+  --gold:#f0b90b;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  background:
+    radial-gradient(1100px 500px at 80% -10%, rgba(240,185,11,.06), transparent 60%),
+    radial-gradient(900px 500px at 0% 110%, rgba(0,195,137,.05), transparent 60%),
+    var(--bg);
+  color:var(--txt);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans HK","PingFang HK","Microsoft JhengHei",sans-serif;
+  font-size:13px;
+  overflow:hidden;
+  -webkit-font-smoothing:antialiased;
+}
+.mono{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-variant-numeric:tabular-nums}
+
+.app{display:flex;flex-direction:column;height:100vh;height:100dvh}
+
+/* ===== 頂欄 ===== */
+header{
+  display:flex;align-items:center;gap:18px;
+  padding:10px 16px;
+  background:linear-gradient(180deg,#101722,#0b1017);
+  border-bottom:1px solid var(--line);
+  flex-wrap:wrap;
+}
+.brand{display:flex;align-items:center;gap:10px}
+.logo{
+  width:38px;height:38px;border-radius:10px;
+  background:linear-gradient(140deg,#f0b90b,#ff7a45);
+  color:#1a1206;font-weight:900;font-size:19px;
+  display:grid;place-items:center;
+  box-shadow:0 0 18px rgba(240,185,11,.35);
+}
+.code{font-size:14px;font-weight:700;letter-spacing:.4px}
+.code .tag{
+  font-size:10px;font-weight:600;padding:1px 5px;border-radius:4px;
+  background:rgba(240,185,11,.15);color:var(--gold);margin-left:4px;vertical-align:middle;
+}
+.name{font-size:11px;color:var(--dim);letter-spacing:.5px}
+
+.quote{display:flex;flex-direction:column;min-width:150px}
+.price{font-size:30px;font-weight:800;line-height:1.05;letter-spacing:-1px;transition:color .15s}
+.chg{font-size:12.5px;font-weight:600;margin-top:2px}
+
+.ohlc{display:flex;gap:18px;margin-left:auto;flex-wrap:wrap}
+.ohlc div{display:flex;flex-direction:column;gap:3px}
+.ohlc label{font-size:10px;color:var(--dim);letter-spacing:1px}
+.ohlc span{font-size:12.5px;font-weight:600}
+
+/* ===== 主體 ===== */
+.main{
+  flex:1;display:grid;grid-template-columns:1fr 348px;
+  gap:10px;padding:10px;min-height:0;
+}
+.left{display:flex;flex-direction:column;gap:10px;min-height:0}
+.right{display:flex;flex-direction:column;gap:10px;min-height:0;overflow-y:auto;padding-right:2px}
+.right::-webkit-scrollbar{width:5px}
+.right::-webkit-scrollbar-thumb{background:#243044;border-radius:4px}
+
+.card{
+  background:linear-gradient(180deg,#101822,#0c1119);
+  border:1px solid var(--line);
+  border-radius:12px;
+  position:relative;
+}
+.card-head{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:9px 12px;border-bottom:1px solid var(--line);
+  font-size:11px;letter-spacing:1.4px;color:var(--dim);font-weight:700;
+}
+
+/* 圖表 */
+.chart-card{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.chart-box{flex:1;min-height:0;position:relative}
+#chart{display:block;width:100%;height:100%}
+
+/* 情緒條 */
+.sentiment{
+  position:absolute;left:12px;top:12px;
+  background:rgba(8,12,18,.78);border:1px solid var(--line);
+  border-radius:9px;padding:8px 11px;backdrop-filter:blur(6px);
+  min-width:186px;pointer-events:none;
+}
+.sentiment .row{display:flex;justify-content:space-between;font-size:10.5px;color:var(--dim);margin-bottom:4px;letter-spacing:.6px}
+.bar{height:6px;border-radius:4px;background:#1b2432;overflow:hidden;display:flex}
+.bar i{display:block;height:100%;transition:width .4s}
+
+/* 訂單簿 */
+.book-card{height:172px;display:flex;flex-direction:column;overflow:hidden}
+.book{display:grid;grid-template-columns:1fr 1fr;gap:0 10px;padding:6px 12px 10px;flex:1;overflow:hidden}
+.book-col{display:flex;flex-direction:column;justify-content:flex-end;gap:1px}
+.book-row{
+  display:flex;justify-content:space-between;font-size:11px;
+  padding:2.5px 5px;border-radius:4px;position:relative;overflow:hidden;
+}
+.book-row .bg{position:absolute;right:0;top:0;bottom:0;opacity:.13;border-radius:4px}
+.book-row span{position:relative;z-index:1}
+.book-mid{
+  grid-column:1/-1;text-align:center;font-size:11px;color:var(--dim);
+  padding:3px 0;border-top:1px dashed var(--line);border-bottom:1px dashed var(--line);
+  margin:3px 0;letter-spacing:1px;
+}
+
+/* 交易面板 */
+.pad{padding:12px}
+.qty-label{font-size:10px;color:var(--dim);letter-spacing:1.2px;margin-bottom:6px;display:block}
+.qty-input{
+  width:100%;background:#080d14;border:1px solid var(--line);border-radius:9px;
+  color:var(--txt);font-size:18px;font-weight:700;padding:10px 12px;
+  font-family:ui-monospace,monospace;outline:none;transition:border-color .15s;
+}
+.qty-input:focus{border-color:#3a4b66}
+.quick{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:8px}
+.quick button{
+  background:#151d29;border:1px solid var(--line);color:var(--dim);
+  border-radius:7px;padding:6px 0;font-size:11px;cursor:pointer;transition:.15s;
+  font-family:ui-monospace,monospace;
+}
+.quick button:hover{background:#1d2837;color:#fff;border-color:#33445e}
+
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.actions button{
+  padding:12px 0;border:none;border-radius:10px;font-size:14px;font-weight:800;
+  cursor:pointer;letter-spacing:1.5px;transition:transform .08s,filter .15s;
+  font-family:inherit;
+}
+.actions button:active{transform:scale(.97)}
+.btn-buy{background:linear-gradient(180deg,var(--up),#00a875);color:#fff;box-shadow:0 4px 16px rgba(0,195,137,.22)}
+.btn-sell{background:linear-gradient(180deg,var(--down),#e83448);color:#fff;box-shadow:0 4px 16px rgba(255,77,94,.2)}
+.btn-short{background:linear-gradient(180deg,#3a4a63,#26334a);color:#9fd6ff;border:1px solid #38506f !important}
+.btn-cover{background:linear-gradient(180deg,#2d3a4d,#1d2735);color:#e8c46a;border:1px solid #4a3f22 !important}
+.actions button:hover{filter:brightness(1.1)}
+
+/* 持倉 */
+.pos-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);border-radius:8px;overflow:hidden;margin:0 12px 12px}
+.pos-cell{background:#0e141d;padding:9px 11px}
+.pos-cell label{display:block;font-size:10px;color:var(--dim);letter-spacing:.8px;margin-bottom:3px}
+.pos-cell span{font-size:13px;font-weight:700}
+
+/* 日誌 */
+.logbar{
+  height:104px;border-top:1px solid var(--line);
+  background:#0a0f16;padding:6px 14px;overflow-y:auto;
+  font-family:ui-monospace,monospace;font-size:11.5px;line-height:1.65;
+}
+.logbar::-webkit-scrollbar{width:6px}
+.logbar::-webkit-scrollbar-thumb{background:#1e2836;border-radius:4px}
+.log-line{color:#8593a6}
+.log-line b{color:#c9d6e6}
+.log-line.up{color:var(--up)}
+.log-line.down{color:var(--down)}
+.log-line.gold{color:var(--gold)}
+.log-line.sys{color:#5b6b80}
+
+@media (max-width:900px){
+  .main{grid-template-columns:1fr;overflow-y:auto}
+  .chart-card{height:320px;flex:none}
+  .right{overflow:visible}
+  .ohlc{display:none}
+  .price{font-size:24px}
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header>
+    <div class="brand">
+      <div class="logo">奶</div>
+      <div>
+        <div class="code">0842.HK<span class="tag">主板</span></div>
+        <div class="name">奶龍集團 MILK DRAGON HOLDINGS</div>
+      </div>
+    </div>
+
+    <div class="quote">
+      <div class="price mono" id="price">88.80</div>
+      <div class="chg mono" id="chg">0.00 (0.00%)</div>
+    </div>
+
+    <div class="ohlc">
+      <div><label>開市</label><span class="mono" id="oOpen">88.80</span></div>
+      <div><label>最高</label><span class="mono" id="oHigh">88.80</span></div>
+      <div><label>最低</label><span class="mono" id="oLow">88.80</span></div>
+      <div><label>成交</label><span class="mono" id="oVol">0</span></div>
+      <div><label>交易日</label><span class="mono" id="oDay">1</span></div>
+      <div><label>在線散戶</label><span class="mono" id="oOnline">1,284</span></div>
+    </div>
+  </header>
+
+  <div class="main">
+    <div class="left">
+      <div class="card chart-card">
+        <div class="chart-box">
+          <canvas id="chart"></canvas>
+          <div class="sentiment">
+            <div class="row"><span>散戶買入</span><span class="mono" id="sBuy">0</span></div>
+            <div class="row"><span>散戶造空</span><span class="mono" id="sShort">0</span></div>
+            <div class="bar" style="margin:6px 0 5px">
+              <i id="barBuy" style="width:50%;background:var(--up)"></i>
+              <i id="barShort" style="width:50%;background:var(--down)"></i>
+            </div>
+            <div class="row" style="margin:0;color:#5c6b7f">
+              <span>莊家壓力</span><span class="mono" id="sPress">中性</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card book-card">
+        <div class="card-head"><span>買賣盤（模擬）</span><span id="bookSpread" style="color:#41506a">—</span></div>
+        <div class="book" id="book"></div>
+      </div>
+    </div>
+
+    <div class="right">
+
+      <div class="card">
+        <div class="card-head"><span>下單 (0手續費)</span><span class="mono" id="mktPx" style="color:var(--gold)">88.80</span></div>
+        <div class="pad">
+          <label class="qty-label">數量（股）</label>
+          <input class="qty-input" id="qty" value="10000" inputmode="numeric">
+          <div class="quick">
+            <button data-q="1000">1,000</button>
+            <button data-q="10000">1萬</button>
+            <button data-q="100000">10萬</button>
+            <button data-q="1000000">100萬</button>
+          </div>
+
+          <div class="actions">
+            <button class="btn-buy"   id="bBuy">買入</button>
+            <button class="btn-sell"  id="bSell">賣出</button>
+            <button class="btn-short" id="bShort">造空</button>
+            <button class="btn-cover" id="bCover">平空</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><span>我的賬戶</span><span id="navLabel" class="mono" style="color:#8593a6">淨資產</span></div>
+        <div class="pad" style="padding-bottom:10px">
+          <div style="font-size:26px;font-weight:800;letter-spacing:-.5px" class="mono" id="nav">1,000,000.00</div>
+          <div style="font-size:12px;font-weight:600;margin-top:2px" class="mono" id="navPnl">+0.00 (0.00%)</div>
+        </div>
+        <div class="pos-grid">
+          <div class="pos-cell"><label>現金 / 融資</label><span class="mono" id="pCash">1,000,000.00</span></div>
+          <div class="pos-cell"><label>持倉市值</label><span class="mono" id="pMv">0.00</span></div>
+          <div class="pos-cell"><label>持股 / 均價</label><span class="mono" id="pShares">0</span></div>
+          <div class="pos-cell"><label>持倉浮盈</label><span class="mono" id="pPl">0.00</span></div>
+          <div class="pos-cell"><label>空倉 / 均價</label><span class="mono" id="pShort">0</span></div>
+          <div class="pos-cell"><label>空倉浮盈</label><span class="mono" id="pShortPl">0.00</span></div>
+          <div class="pos-cell"><label>已實現盈虧</label><span class="mono" id="pReal">0.00</span></div>
+          <div class="pos-cell"><label>累計手續費</label><span class="mono" id="pFee">0</span></div>
+        </div>
+        <div class="pad" style="padding-top:0">
+          <button id="bReset" style="width:100%;background:#151d29;border:1px solid var(--line);color:#67758a;border-radius:8px;padding:8px;font-size:11px;cursor:pointer;font-family:inherit;letter-spacing:1px">重新開始</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="logbar" id="log"></div>
+</div>
+
+<script>
+/* =========================================================
+   奶龍股 0842.HK — 模擬交易所 (精確小數 / 強制平倉)
+   ========================================================= */
+const CFG = {
+  startCash : 1_000_000,
+  startPrice: 88.80,
+  tickMs    : 800,
+  ticksPerDay: 240,
+  ticksPerBar: 4,
+  interest  : 0.000013,
+  feeRate   : 0,            // 0 手續費
+  feeMin    : 0
+};
+
+const S = {
+  price: CFG.startPrice,
+  prevClose: CFG.startPrice,
+  open: CFG.startPrice,
+  high: CFG.startPrice,
+  low: CFG.startPrice,
+  day: 1,
+  tick: 0,
+  vol: 0.0026,
+  hist: [],
+  cash: CFG.startCash,
+  shares: 0,
+  shareCost: 0,
+  shortQty: 0,
+  shortCost: 0,
+  realized: 0,
+  fees: 0,
+  pressure: 0,
+  flow: {buy:0, sell:0, short:0, cover:0},
+  book: {bids:[], asks:[]},
+  online: 1284,
+  volToday: 0
+};
+
+/* ---------- 工具 ---------- */
+const $ = id => document.getElementById(id);
+const num = (n,d=2) => n.toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d});
+const int = n => Math.round(n).toLocaleString('en-US');
+const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
+
+function log(msg, cls=''){
+  const el = $('log');
+  const d = document.createElement('div');
+  d.className = 'log-line ' + cls;
+  const t = new Date().toLocaleTimeString('en-GB',{hour12:false});
+  d.innerHTML = `<span style="color:#39465a">[${t}]</span> ${msg}`;
+  el.appendChild(d);
+  while(el.children.length > 120) el.removeChild(el.firstChild);
+  el.scrollTop = el.scrollHeight;
+}
+
+/* ---------- 核心：淨資產結算 ---------- */
+function nav(){
+  return S.cash + S.shares * S.price - S.shortQty * S.price;
+}
+
+/* ---------- 核心：爆倉強平機制 ---------- */
+function checkLiquidation() {
+  // 當淨資產跌至 1000 以下，且有持倉或空倉時，觸發強平
+  if (nav() <= 1000 && (S.shares > 0 || S.shortQty > 0)) {
+    const hadShares = S.shares;
+    const hadShorts = S.shortQty;
+    
+    // 強制平倉
+    S.cash += S.shares * S.price;  // 賣出所有持股
+    S.cash -= S.shortQty * S.price; // 買回所有空倉
+    S.shares = 0;
+    S.shareCost = 0;
+    S.shortQty = 0;
+    S.shortCost = 0;
+    
+    // 如果平倉後現金為負數（資不抵債），直接破產歸零
+    if (S.cash < 0) S.cash = 0;
+    
+    log(`🚨 賬戶淨資產跌破警戒線（<= 0），系統已強制賣出/平倉所有部位！`, 'down');
+    if (hadShares > 0) log(`已強制賣出 ${int(hadShares)} 股`, 'down');
+    if (hadShorts > 0) log(`已強制平空 ${int(hadShorts)} 股`, 'down');
+    if (S.cash === 0) log(`💀 您的資金已完全歸零（破產）。`, 'gold');
+  }
+}
+
+/* ---------- 市場核心 ---------- */
+function marketTick(){
+  S.tick++;
+
+  // 換日
+  const tInDay = ((S.tick - 1) % CFG.ticksPerDay) + 1;
+  if(tInDay === 1 && S.tick > 1){
+    S.day++;
+    S.prevClose = S.price;
+    S.volToday = 0;
+    log(`— 第 ${S.day} 個交易日開市，開市價 HK$${num(S.price)} —`, 'gold');
+  }
+
+  /* --- 1. 散戶流 --- */
+  const g = Math.random;
+  let buyFlow   = Math.pow(g(), 2.4) * 5200;
+  let sellFlow  = Math.pow(g(), 2.4) * 5200;
+  let shortFlow = Math.pow(g(), 3.2) * 3400;
+  let coverFlow = Math.pow(g(), 3.2) * 3400;
+
+  if(g() < 0.045) buyFlow   *= 6 + g()*8;
+  if(g() < 0.045) shortFlow *= 6 + g()*8;
+  if(g() < 0.020) sellFlow  *= 5 + g()*6;
+
+  S.flow.buy = buyFlow; S.flow.sell = sellFlow;
+  S.flow.short = shortFlow; S.flow.cover = coverFlow;
+
+  /* --- 2. 反向壓力 --- */
+  const netBull = buyFlow + coverFlow;      // 推跌
+  const netBear = sellFlow + shortFlow;     // 推升
+  const netFlow = netBull - netBear + S.pressure;
+  const contrarian = -(netFlow / 4200) * 0.0019;
+
+  S.pressure *= 0.90;
+
+  /* --- 3. 噪聲 + 波動率 --- */
+  S.vol = clamp(S.vol + (Math.random()-0.5)*0.0011, 0.0011, 0.0085);
+  if(Math.random() < 0.012) S.vol = Math.min(0.011, S.vol * 2.2);
+
+  const noise = (Math.random()+Math.random()+Math.random()+Math.random()-2) * S.vol;
+  const meanPull = Math.log(CFG.startPrice / S.price) * 0.0016;
+
+  let ret = contrarian + noise + meanPull;
+  ret = clamp(ret, -0.055, 0.055);
+
+  S.price = Math.max(0.50, S.price * Math.exp(ret));
+  if(S.price > S.high) S.high = S.price;
+  if(S.price < S.low)  S.low  = S.price;
+
+  /* --- 4. 利息 & 成交量 --- */
+  if(S.cash < 0) S.cash *= (1 + CFG.interest);
+  S.volToday += (buyFlow + sellFlow + shortFlow + coverFlow) * Math.random() * 0.1;
+
+  /* --- 5. K 線 --- */
+  let currentBar = S.hist[S.hist.length - 1];
+  if (!currentBar || currentBar.t >= CFG.ticksPerBar) {
+      S.hist.push({ o: S.price, h: S.price, l: S.price, c: S.price, t: 1 });
+      if (S.hist.length > 100) S.hist.shift();
+      S.prevClose = S.hist.length > 1 ? S.hist[S.hist.length-2].c : CFG.startPrice;
+  } else {
+      currentBar.c = S.price;
+      if (S.price > currentBar.h) currentBar.h = S.price;
+      if (S.price < currentBar.l) currentBar.l = S.price;
+      currentBar.t++;
+  }
+
+  // 更新開高低
+  const firstBar = S.hist[0];
+  S.open = firstBar ? firstBar.o : S.price;
+  S.high = Math.max(...S.hist.map(b => b.h));
+  S.low  = Math.min(...S.hist.map(b => b.l));
+
+  S.online = clamp(S.online + Math.round((Math.random()-0.5)*36), 900, 2600);
+
+  checkLiquidation();
+  buildBook();
+  render();
+}
+
+/* ---------- 訂單簿 ---------- */
+function buildBook(){
+  const p = S.price;
+  const ts = p < 1 ? 0.001 : p < 10 ? 0.01 : p < 100 ? 0.05 : p < 500 ? 0.1 : 0.5;
+  const bids = [], asks = [];
+  for(let i=1;i<=5;i++){
+    bids.push({p: +(p - ts*i).toFixed(3), q: Math.floor(Math.random()*900000 + 30000)});
+    asks.push({p: +(p + ts*i).toFixed(3), q: Math.floor(Math.random()*900000 + 30000)});
+  }
+  S.book = {bids, asks, ts};
+}
+
+/* ---------- 交易 ---------- */
+function getQty(){
+  const v = parseInt($('qty').value.replace(/,/g,''), 10);
+  if(!v || v <= 0 || isNaN(v)){ log('請輸入有效股數。','sys'); return 0; }
+  return Math.floor(v);
+}
+
+function doBuy(qty){
+  const px = S.price;
+  const gross = qty * px;
+  S.cash -= gross;
+  S.shareCost += gross;
+  S.shares += qty;
+  S.volToday += qty;
+  S.pressure += Math.sqrt(qty) * 9;      // 散戶買入 → 推跌
+  log(`買入 <b>${int(qty)}</b> 股 @ HK$${num(px,3)}　總額 HK$${num(gross)}`, 'up');
+  checkLiquidation();
+  render();
+}
+
+function doSell(qty){
+  if(qty > S.shares){ log(`持倉不足：你只有 ${int(S.shares)} 股。`,'sys'); return; }
+  const px = S.price;
+  const gross = qty * px;
+  const costPart = S.shareCost * (qty / S.shares);
+  const pl = gross - costPart;
+  S.realized += pl;
+  S.cash += gross;
+  S.shareCost -= costPart;
+  S.shares -= qty;
+  S.volToday += qty;
+  S.pressure -= Math.sqrt(qty) * 9;      // 散戶賣出 → 推升
+  log(`賣出 <b>${int(qty)}</b> 股 @ HK$${num(px,3)}　${pl>=0?'獲利':'虧損'} HK$${num(Math.abs(pl))}`, pl>=0?'up':'down');
+  checkLiquidation();
+  render();
+}
+
+function doShort(qty){
+  const px = S.price;
+  const gross = qty * px;
+  S.cash += gross;
+  S.shortCost += gross;
+  S.shortQty += qty;
+  S.volToday += qty;
+  S.pressure -= Math.sqrt(qty) * 9;      // 造空 → 推升
+  log(`造空 <b>${int(qty)}</b> 股 @ HK$${num(px,3)}　沽出所得 HK$${num(gross)}`, 'down');
+  checkLiquidation();
+  render();
+}
+
+function doCover(qty){
+  if(qty > S.shortQty){ log(`空倉不足：你只有 ${int(S.shortQty)} 股空倉。`,'sys'); return; }
+  const px = S.price;
+  const gross = qty * px;
+  const openPart = S.shortCost * (qty / S.shortQty);
+  const pl = openPart - gross;
+  S.realized += pl;
+  S.cash -= gross;
+  S.shortCost -= openPart;
+  S.shortQty -= qty;
+  S.volToday += qty;
+  S.pressure += Math.sqrt(qty) * 9;      // 平空 → 推跌
+  log(`平空 <b>${int(qty)}</b> 股 @ HK$${num(px,3)}　${pl>=0?'獲利':'虧損'} HK$${num(Math.abs(pl))}`, pl>=0?'up':'down');
+  checkLiquidation();
+  render();
+}
+
+/* ---------- 渲染 ---------- */
+function render(){
+  const up = S.price >= S.prevClose;
+  const col = up ? 'var(--up)' : 'var(--down)';
+  const diff = S.price - S.prevClose;
+  const pct = S.prevClose ? (diff / S.prevClose) * 100 : 0;
+
+  $('price').textContent = num(S.price, S.price < 10 ? 3 : 2);
+  $('price').style.color = col;
+  $('chg').textContent = `${diff>=0?'+':''}${num(diff,2)} (${diff>=0?'+':''}${num(pct,2)}%)`;
+  $('chg').style.color = col;
+  $('mktPx').textContent = num(S.price, S.price < 10 ? 3 : 2);
+
+  $('oOpen').textContent = num(S.open);
+  $('oHigh').textContent = num(S.high);
+  $('oLow').textContent  = num(S.low);
+  $('oVol').textContent  = int(S.volToday);
+  $('oDay').textContent  = S.day;
+  $('oOnline').textContent = int(S.online);
+
+  // 淨資產
+  const nv = nav();
+  const pnl = nv - CFG.startCash;
+  $('nav').textContent = num(nv, 2);
+  $('nav').style.color = pnl >= 0 ? 'var(--up)' : 'var(--down)';
+  $('navPnl').textContent = `${pnl>=0?'+':''}${num(pnl, 2)} (${pnl>=0?'+':''}${num(pnl/CFG.startCash*100,2)}%)`;
+  $('navPnl').style.color = pnl >= 0 ? 'var(--up)' : 'var(--down)';
+
+  // 現金
+  const cashEl = $('pCash');
+  cashEl.textContent = num(S.cash, 2);
+  cashEl.style.color = S.cash < 0 ? 'var(--gold)' : 'var(--txt)';
+
+  // 持倉
+  const mv = S.shares * S.price;
+  const avgC = S.shares > 0 ? S.shareCost / S.shares : 0;
+  const posPl = S.shares > 0 ? (mv - S.shareCost) : 0;
+  $('pMv').textContent = num(mv, 2);
+  // 均價保留 3 位小數，避免用戶自己算的時候有誤差
+  $('pShares').textContent = S.shares > 0 ? `${int(S.shares)} @ ${num(avgC, 3)}` : '0';
+  $('pPl').textContent = (posPl>=0?'+':'') + num(posPl, 2);
+  $('pPl').style.color = posPl >= 0 ? 'var(--up)' : 'var(--down)';
+
+  // 空倉
+  const avgS = S.shortQty > 0 ? S.shortCost / S.shortQty : 0;
+  const shortPl = S.shortQty > 0 ? (S.shortCost - S.shortQty * S.price) : 0;
+  $('pShort').textContent = S.shortQty > 0 ? `${int(S.shortQty)} @ ${num(avgS, 3)}` : '0';
+  $('pShortPl').textContent = (shortPl>=0?'+':'') + num(shortPl, 2);
+  $('pShortPl').style.color = shortPl >= 0 ? 'var(--up)' : 'var(--down)';
+
+  $('pReal').textContent = (S.realized>=0?'+':'') + num(S.realized, 2);
+  $('pReal').style.color = S.realized >= 0 ? 'var(--up)' : 'var(--down)';
+  $('pFee').textContent = num(S.fees, 2);
+
+  // 情緒
+  const fb = S.flow.buy + S.flow.cover;
+  const fs = S.flow.sell + S.flow.short;
+  const tot = Math.max(1, fb + fs);
+  $('sBuy').textContent = int(fb);
+  $('sShort').textContent = int(fs);
+  $('barBuy').style.width = (fb/tot*100).toFixed(1) + '%';
+  $('barShort').style.width = (fs/tot*100).toFixed(1) + '%';
+
+  const net = fb - fs;
+  const pe = $('sPress');
+  if(net > 1200){ pe.textContent = '強力吸納 → 偏跌'; pe.style.color = 'var(--down)'; }
+  else if(net > 200){ pe.textContent = '散戶買入 → 偏軟'; pe.style.color = '#ff8a95'; }
+  else if(net < -1200){ pe.textContent = '大量造空 → 偏升'; pe.style.color = 'var(--up)'; }
+  else if(net < -200){ pe.textContent = '散戶造空 → 偏強'; pe.style.color = '#7fc3ff'; }
+  else { pe.textContent = '多空拉鋸'; pe.style.color = '#67758a'; }
+
+  renderBook();
+  drawChart();
+}
+
+function renderBook(){
+  const el = $('book');
+  const {bids, asks, ts} = S.book;
+  if(!bids || !bids.length) return;
+
+  const maxQ = Math.max(...bids.map(b=>b.q), ...asks.map(a=>a.q));
+  let html = '';
+
+  for(let i=asks.length-1;i>=0;i--){
+    const a = asks[i];
+    const w = (a.q/maxQ*100).toFixed(0);
+    html += `<div class="book-row"><div class="bg" style="width:${w}%;background:var(--down)"></div>
+      <span style="color:var(--down)">${num(a.p, a.p<10?3:2)}</span>
+      <span style="color:#5d6c81">${int(a.q)}</span></div>`;
+    if(i === 0) html += `<div style="height:1px"></div>`;
+  }
+
+  html += `<div class="book-mid">買賣差價 ${num(ts*2, 3)}</div>`;
+
+  for(let i=0;i<bids.length;i++){
+    const b = bids[i];
+    const w = (b.q/maxQ*100).toFixed(0);
+    html += `<div class="book-row"><div class="bg" style="width:${w}%;background:var(--up)"></div>
+      <span style="color:var(--up)">${num(b.p, b.p<10?3:2)}</span>
+      <span style="color:#5d6c81">${int(b.q)}</span></div>`;
+  }
+
+  el.innerHTML = html;
+  $('bookSpread').textContent = `HK$${num(S.price,2)}`;
+}
+
+/* ---------- K 線圖 ---------- */
+const canvas = $('chart');
+
+function drawChart(){
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  const W = Math.max(10, rect.width);
+  const H = Math.max(10, rect.height);
+
+  if(canvas.width !== Math.round(W*dpr) || canvas.height !== Math.round(H*dpr)){
+    canvas.width = Math.round(W*dpr);
+    canvas.height = Math.round(H*dpr);
+  }
+
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.clearRect(0,0,W,H);
+
+  const pts = S.hist;
+  if(pts.length < 2) return;
+
+  const padL = 6, padR = 70, padT = 22, padB = 18;
+  const cw = W - padL - padR;
+  const ch = H - padT - padB;
+  if(cw <= 0 || ch <= 0) return;
+
+  let min = Infinity, max = -Infinity;
+  for(const b of pts){ if(b.l < min) min = b.l; if(b.h > max) max = b.h; }
+  if(max - min < 0.02){ max += 0.5; min -= 0.5; }
+  const pad = (max - min) * 0.14;
+  min -= pad; max += pad;
+
+  const X = i => padL + (i / (pts.length - 1)) * cw;
+  const Y = v => padT + (1 - (v - min) / (max - min)) * ch;
+
+  ctx.font = '10.5px ui-monospace, monospace';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  for(let i=0;i<=4;i++){
+    const v = min + (max-min) * (i/4);
+    const yy = Y(v);
+    ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(padL, yy); ctx.lineTo(padL+cw, yy); ctx.stroke();
+    ctx.fillStyle = '#41506a';
+    ctx.fillText(num(v, 2), padL + cw + 8, yy);
+  }
+
+  const barSpacing = cw / pts.length;
+  const barW = Math.max(1.5, barSpacing * 0.65);
+
+  for (let i = 0; i < pts.length; i++) {
+    const b = pts[i];
+    const x = padL + i * barSpacing + barSpacing / 2;
+    const yO = Y(b.o), yH = Y(b.h), yL = Y(b.l), yC = Y(b.c);
+
+    const isUp = b.c >= b.o;
+    const color = isUp ? '#00c389' : '#ff4d5e'; // 綠升紅跌
+
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x, yH);
+    ctx.lineTo(x, yL);
+    ctx.stroke();
+
+    ctx.fillStyle = color;
+    const top = Math.min(yO, yC);
+    const bottom = Math.max(yO, yC);
+    const height = Math.max(1, bottom - top);
+    ctx.fillRect(x - barW / 2, top, barW, height);
+  }
+
+  const lastX = X(pts.length-1);
+  const lastY = Y(S.price);
+  const up = S.price >= S.prevClose;
+  const lineCol = up ? '#00c389' : '#ff4d5e';
+
+  ctx.beginPath();
+  ctx.arc(lastX, lastY, 3, 0, Math.PI*2);
+  ctx.fillStyle = lineCol;
+  ctx.fill();
+
+  const label = num(S.price, 2);
+  ctx.font = 'bold 11px ui-monospace, monospace';
+  const tw = ctx.measureText(label).width + 14;
+  const ly = clamp(lastY, padT+8, padT+ch-8);
+  ctx.fillStyle = lineCol;
+  ctx.beginPath();
+  if(ctx.roundRect) ctx.roundRect(padL+cw+2, ly-9, tw, 18, 4);
+  else ctx.rect(padL+cw+2, ly-9, tw, 18);
+  ctx.fill();
+  ctx.fillStyle = '#0a0e14';
+  ctx.textAlign = 'center';
+  ctx.fillText(label, padL+cw+2+tw/2, ly);
+
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#4e5c70';
+  ctx.font = '10px ui-monospace, monospace';
+  ctx.fillText(`第 ${S.day} 交易日 · ${pts.length} 根K線`, padL + 4, padT - 8);
+}
+
+/* ---------- 綁定事件 ---------- */
+$('bBuy').onclick   = () => { const q = getQty(); if(q) doBuy(q); };
+$('bSell').onclick  = () => { const q = getQty(); if(q) doSell(q); };
+$('bShort').onclick = () => { const q = getQty(); if(q) doShort(q); };
+$('bCover').onclick = () => { const q = getQty(); if(q) doCover(q); };
+
+document.querySelectorAll('.quick button').forEach(b=>{
+  b.onclick = () => {
+    let val = b.dataset.q;
+    if (val === '1萬') val = 10000;
+    if (val === '10萬') val = 100000;
+    if (val === '100萬') val = 1000000;
+    $('qty').value = parseInt(val, 10).toLocaleString('en-US');
+  };
+});
+
+$('qty').addEventListener('input', e=>{
+  const raw = e.target.value.replace(/[^\d]/g,'');
+  e.target.value = raw ? parseInt(raw,10).toLocaleString('en-US') : '';
+});
+
+$('bReset').onclick = () => {
+  if(!confirm('確定重新開始？所有持倉與盈虧將清零。')) return;
+  resetGame();
+};
+
+window.addEventListener('resize', () => {
+  drawChart();
+  render();
+});
+
+/* ---------- 初始化 ---------- */
+function resetGame(){
+  S.price = CFG.startPrice;
+  S.prevClose = CFG.startPrice;
+  S.open = CFG.startPrice;
+  S.high = CFG.startPrice;
+  S.low  = CFG.startPrice;
+  S.day = 1;
+  S.tick = 0;
+  S.vol = 0.0026;
+  S.cash = CFG.startCash;
+  S.shares = 0;
+  S.shareCost = 0;
+  S.shortQty = 0;
+  S.shortCost = 0;
+  S.realized = 0;
+  S.fees = 0;
+  S.pressure = 0;
+  S.volToday = 0;
+  S.flow = {buy:0,sell:0,short:0,cover:0};
+
+  S.hist = [];
+  let p = CFG.startPrice;
+  for(let i=0;i<60;i++){
+    let o = p + (Math.random() - 0.5) * 2;
+    let c = p + (Math.random() - 0.5) * 2;
+    let h = Math.max(o, c) + Math.random() * 1.5;
+    let l = Math.min(o, c) - Math.random() * 1.5;
+    S.hist.push({ o, h, l, c, t: 1 });
+    p = c;
+  }
+  S.price = p;
+  S.prevClose = S.hist[S.hist.length - 2].c;
+
+  $('log').innerHTML = '';
+  log('奶龍股 0842.HK 模擬交易所已啟動。', 'gold');
+  log('初始資金：HK$1,000,000　0 手續費　T+0 交易', 'sys');
+  log('⚠️ 當賬戶淨資產接近 0 時，系統將自動強制平倉。', 'down');
+
+  buildBook();
+  render();
+}
+
+function boot(){
+  resetGame();
+  setInterval(marketTick, CFG.tickMs);
+}
+
+boot();
+</script>
+</body>
+</html>
